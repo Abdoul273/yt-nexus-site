@@ -18,3 +18,11 @@ Après `flutter build apk --release --split-per-abi` dans `YT-DOWNLOAD/mobile` :
 ```
 
 Le script lit la version dans `pubspec.yaml`, renomme les APK et crée la release `vX.Y.Z`.
+Pense à augmenter la version dans `pubspec.yaml` avant chaque build.
+
+Les applications installées (1.1.0 et plus) vérifient cette release au lancement et proposent
+la mise à jour toutes seules. Les notes passées en argument s'affichent dans l'app :
+
+```fish
+./publier "- Nouveauté 1\n- Nouveauté 2"
+```

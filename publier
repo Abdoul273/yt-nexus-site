@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Publie les APK de YT-NEXUS mobile comme release GitHub (le site les affiche tout seul).
+# Les notes (1er argument) s'affichent dans l'app, dans la fenêtre « Nouvelle version ».
+#   ./publier "- Lecteur intégré\n- Suggestions de recherche"
 set -euo pipefail
 MOBILE="$HOME/Documents/MES_PROJETS/MES_APPLIS/YT-DOWNLOAD/mobile"
 OUT="$MOBILE/build/app/outputs/flutter-apk"
@@ -15,6 +17,6 @@ done
 cp "$OUT/app-arm64-v8a-release.apk" "$TMP/yt-nexus.apk"
 cp "$OUT/app-armeabi-v7a-release.apk" "$TMP/yt-nexus-armv7.apk"
 gh release create "v$VERSION" -R Abdoul273/yt-nexus-site \
-    --title "YT-NEXUS $VERSION" --notes "YT-NEXUS $VERSION pour Android 10+." \
+    --title "YT-NEXUS $VERSION" --notes "$(printf '%b' "${1:-YT-NEXUS $VERSION pour Android 10+.}")" \
     "$TMP/yt-nexus.apk" "$TMP/yt-nexus-armv7.apk"
 echo "Publié : https://abdoul273.github.io/yt-nexus-site/"
