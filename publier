@@ -3,20 +3,54 @@
 # Les notes (1er argument) s'affichent dans l'app, dans la fenêtre « Nouvelle version ».
 #   ./publier "- Lecteur intégré\n- Suggestions de recherche"
 set -euo pipefail
+REPO="Abdoul273/yt-nexus-site"
 MOBILE="$HOME/Documents/MES_PROJETS/MES_APPLIS/YT-DOWNLOAD/mobile"
 OUT="$MOBILE/build/app/outputs/flutter-apk"
 VERSION=$(grep -oP '^version: \K[0-9.]+' "$MOBILE/pubspec.yaml")
+TAG="v$VERSION"
+NOTES=$(printf '%b' "${1:-YT-NEXUS $VERSION pour Android 10+.}")
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+
 for f in app-arm64-v8a-release.apk app-armeabi-v7a-release.apk; do
     [[ -f "$OUT/$f" ]] || { echo "Manque $OUT/$f : lance d'abord flutter build apk --release --split-per-abi" >&2; exit 1; }
     if [[ "$OUT/$f" -ot "$MOBILE/pubspec.yaml" ]]; then
-        echo "Attention : $f est plus ancien que pubspec.yaml (APK pas reconstruit ?)" >&2
+        echo "Erreur : $f est plus ancien que pubspec.yaml (version $VERSION). Recompile avant de publier !" >&2
+        exit 1
     fi
 done
+
 cp "$OUT/app-arm64-v8a-release.apk" "$TMP/yt-nexus.apk"
 cp "$OUT/app-armeabi-v7a-release.apk" "$TMP/yt-nexus-armv7.apk"
-gh release create "v$VERSION" -R Abdoul273/yt-nexus-site \
-    --title "YT-NEXUS $VERSION" --notes "$(printf '%b' "${1:-YT-NEXUS $VERSION pour Android 10+.}")" \
-    "$TMP/yt-nexus.apk" "$TMP/yt-nexus-armv7.apk"
+
+if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+    echo "Release $TAG déjà existante : mise à jour sans coupure des APK…"
+    cp "$TMP/yt-nexus.apk" "$TMP/yt-nexus-new.apk"
+    cp "$TMP/yt-nexus-armv7.apk" "$TMP/yt-nexus-armv7-new.apk"
+    for nom in yt-nexus-new.apk yt-nexus-armv7-new.apk; do
+        stale_url=$(gh release view "$TAG" -R "$REPO" --json assets --jq ".assets[] | select(.name == \"$nom\") | .apiUrl" | head -n1)
+        if [[ -n "$stale_url" ]]; then
+            gh api -X DELETE "$stale_url" >/dev/null
+        fi
+    done
+    gh release upload "$TAG" -R "$REPO" "$TMP/yt-nexus-new.apk" "$TMP/yt-nexus-armv7-new.apk"
+    for nom in yt-nexus.apk yt-nexus-armv7.apk; do
+        old_url=$(gh release view "$TAG" -R "$REPO" --json assets --jq ".assets[] | select(.name == \"$nom\") | .apiUrl" | head -n1)
+        if [[ -n "$old_url" ]]; then
+            gh api -X DELETE "$old_url" >/dev/null
+        fi
+        new_nom="${nom%.apk}-new.apk"
+        new_url=$(gh release view "$TAG" -R "$REPO" --json assets --jq ".assets[] | select(.name == \"$new_nom\") | .apiUrl" | head -n1)
+        if [[ -n "$new_url" ]]; then
+            gh api -X PATCH "$new_url" -f name="$nom" >/dev/null
+        fi
+    done
+    gh release edit "$TAG" -R "$REPO" --title "YT-NEXUS $VERSION" --notes "$NOTES"
+else
+    # Brouillon pendant l'envoi pour éviter un lien 404 avant la fin du téléversement
+    gh release create "$TAG" -R "$REPO" --draft --title "YT-NEXUS $VERSION" --notes "$NOTES"
+    gh release upload "$TAG" -R "$REPO" "$TMP/yt-nexus.apk" "$TMP/yt-nexus-armv7.apk"
+    gh release edit "$TAG" -R "$REPO" --draft=false --latest
+fi
+
 echo "Publié : https://abdoul273.github.io/yt-nexus-site/"
